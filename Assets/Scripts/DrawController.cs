@@ -70,11 +70,11 @@ public class DrawController : MonoBehaviour {
 					
 					brushImage.rectTransform.anchoredPosition = localPoint;
 
-					if (Vector2.Distance(localPoint, prevBrushAnchorPos) > 10f) {
-						Vector2 dir = (localPoint - prevBrushAnchorPos).normalized;
-						brushImage.transform.up = dir;
-						prevBrushAnchorPos = localPoint;
-					}
+					// if (Vector2.Distance(localPoint, prevBrushAnchorPos) > 10f) {
+					// 	Vector2 dir = (localPoint - prevBrushAnchorPos).normalized;
+					// 	brushImage.transform.up = dir;
+					// 	prevBrushAnchorPos = localPoint;
+					// }
 					
 					// Vector2 prevLocal = GetLocalPositionFromPixel(prevPixel);
 					// Vector2 dir = (localPoint - prevLocal).normalized;
@@ -102,10 +102,10 @@ public class DrawController : MonoBehaviour {
 
 			brushImage.rectTransform.anchoredPosition = localPoint;
 
-			Vector2 dir = (localPoint - prevBrushAnchorPos).normalized;
-			if (dir.sqrMagnitude > 0.0001f) {
-				brushImage.transform.up = dir;
-			}
+			// Vector2 dir = (localPoint - prevBrushAnchorPos).normalized;
+			// if (dir.sqrMagnitude > 0.0001f) {
+			// 	brushImage.transform.up = dir;
+			// }
 
 			prevBrushAnchorPos = localPoint;
 
@@ -140,14 +140,18 @@ public class DrawController : MonoBehaviour {
 					continue;
 				}
 				
-				paintedPixelsThisStroke.Add(dstPixel);
-				
-				Color brushColor = brushPixels[y * brushWidth + x];
+				Color brushColor = brushPixels[y * brushWidth + x] * brushImage.color;
 				if (brushColor.a == 0) {
 					continue;
 				}
 
-				texture.SetPixel(dstX, dstY, brushColor);
+				// paintedPixelsThisStroke.Add(dstPixel);
+				Color existing = texture.GetPixel(dstX, dstY);
+				Color result = Color.Lerp(existing, brushColor, brushColor.a);
+				result.a = 1;
+				texture.SetPixel(dstX, dstY, result);
+				// brushColor *= texture.GetPixel(dstX, dstY);
+				// texture.SetPixel(dstX, dstY, brushColor);
 			}
 		}
 	}
