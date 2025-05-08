@@ -147,7 +147,7 @@ public class DrawController : MonoBehaviour {
 
 				// paintedPixelsThisStroke.Add(dstPixel);
 				Color existing = texture.GetPixel(dstX, dstY);
-				Color result = Color.Lerp(existing, brushColor, brushColor.a);
+				Color result = Color.Lerp(existing, brushColor, brushColor.a / 4f);
 				result.a = 1;
 				texture.SetPixel(dstX, dstY, result);
 				// brushColor *= texture.GetPixel(dstX, dstY);
