@@ -1,19 +1,21 @@
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class DrawController : MonoBehaviour {
 
-	private const int textureWidth = 640;
-	private const int textureHeight = 1386;
+	
 
+	[SerializeField] private CanvasScaler canvasScaler;
 	[SerializeField] private RawImage rawImage;
 	[SerializeField] private RawImage brushImage;
 	[SerializeField] private Color penColor;
 	[SerializeField] private int brushSize;
 
 	private Texture2D texture;
+	private int textureWidth;
+	private int textureHeight;
+	
 	private RectTransform surfaceRect;
 	
 	private Color[] brushPixels;
@@ -23,23 +25,18 @@ public class DrawController : MonoBehaviour {
 	private Vector2Int prevPixel = new(-1, -1);
 	private Vector2 prevBrushAnchorPos;
 
-	private readonly HashSet<Vector2Int> paintedPixelsThisStroke = new();
-
 	private void Start() {
-		CreateTexture();
-		
-		Texture2D brushTex = brushImage.texture as Texture2D;
-		brushPixels = brushTex.GetPixels();
-		brushWidth = brushTex.width;
-		brushHeight = brushTex.height;
-		brushImage.gameObject.SetActive(false);
+		SetTexture();
+		SetBrushPixels();
 	}
 
-	private void CreateTexture() {
+	private void SetTexture() {
+		textureWidth = (int)canvasScaler.referenceResolution.x;
+		textureHeight = (int)canvasScaler.referenceResolution.y;
 		texture = new Texture2D(textureWidth, textureHeight, TextureFormat.RGBA32, false) {
 			filterMode = FilterMode.Point
 		};
-		Color[] fillColor = new Color[640 * 1386];
+		Color[] fillColor = new Color[textureWidth * textureHeight];
 		for (int i = 0; i < fillColor.Length; i++) {
 			fillColor[i] = Color.white;
 		}
@@ -49,9 +46,16 @@ public class DrawController : MonoBehaviour {
 		surfaceRect = rawImage.rectTransform;
 	}
 
+	private void SetBrushPixels() {
+		brushWidth = (int)brushImage.rectTransform.sizeDelta.x;
+		brushHeight = (int)brushImage.rectTransform.sizeDelta.y;
+		brushPixels = GetResizedPixels((Texture2D)brushImage.texture, brushWidth, brushHeight);
+		brushImage.gameObject.SetActive(false);
+	}
+
 	private void Update() {
 		if (Input.GetKeyDown(KeyCode.R)) {
-			CreateTexture();
+			Start();
 		}
 		
 		if (Input.GetMouseButtonDown(0)) {
@@ -61,7 +65,6 @@ public class DrawController : MonoBehaviour {
 				brushImage.rectTransform.anchoredPosition = localPoint;
 				prevBrushAnchorPos = localPoint;
 			}
-			paintedPixelsThisStroke.Clear();
 		}
 		if (Input.GetMouseButton(0)) {
 			Vector2Int pixel = GetTexturePixel();
@@ -94,7 +97,7 @@ public class DrawController : MonoBehaviour {
 
 	private void DrawBrushImage(Vector2Int from, Vector2Int to) {
 		
-		int steps = Mathf.CeilToInt(Vector2Int.Distance(from, to));
+		/*int steps = Mathf.CeilToInt(Vector2Int.Distance(from, to));
 		for (int i = 0; i <= steps; i++) {
 			float t = i / (float)steps;
 			Vector2Int pixel = Vector2Int.RoundToInt(Vector2.Lerp(from, to, t));
@@ -102,15 +105,11 @@ public class DrawController : MonoBehaviour {
 
 			brushImage.rectTransform.anchoredPosition = localPoint;
 
-			// Vector2 dir = (localPoint - prevBrushAnchorPos).normalized;
-			// if (dir.sqrMagnitude > 0.0001f) {
-			// 	brushImage.transform.up = dir;
-			// }
-
 			prevBrushAnchorPos = localPoint;
 
 			PaintStampAt(localPoint);
-		}
+		}*/
+		PaintStampAt(GetLocalPositionFromPixel(to));
 		texture.Apply();
 	}
 	
@@ -131,11 +130,6 @@ public class DrawController : MonoBehaviour {
 				int dstX = Mathf.RoundToInt(centerX + rotatedOffset.x);
 				int dstY = Mathf.RoundToInt(centerY + rotatedOffset.y);
 
-				Vector2Int dstPixel = new Vector2Int(dstX, dstY);
-				if (paintedPixelsThisStroke.Contains(dstPixel)) {
-					continue;
-				}
-
 				if (dstX < 0 || dstX >= textureWidth || dstY < 0 || dstY >= textureHeight) {
 					continue;
 				}
@@ -145,13 +139,10 @@ public class DrawController : MonoBehaviour {
 					continue;
 				}
 
-				// paintedPixelsThisStroke.Add(dstPixel);
 				Color existing = texture.GetPixel(dstX, dstY);
 				Color result = Color.Lerp(existing, brushColor, brushColor.a / 4f);
 				result.a = 1;
 				texture.SetPixel(dstX, dstY, result);
-				// brushColor *= texture.GetPixel(dstX, dstY);
-				// texture.SetPixel(dstX, dstY, brushColor);
 			}
 		}
 	}
@@ -272,5 +263,21 @@ public class DrawController : MonoBehaviour {
 			}
 		}
 		texture.Apply();
+	}
+
+	private static Color[] GetResizedPixels(Texture2D originalTexture, int newWidth, int newHeight) {
+		RenderTexture rt = new RenderTexture(newWidth, newHeight, 0);
+		RenderTexture.active = rt;
+
+		Graphics.Blit(originalTexture, rt);
+
+		Texture2D resizedTexture = new Texture2D(newWidth, newHeight, TextureFormat.RGBA32, false);
+		resizedTexture.ReadPixels(new Rect(0, 0, newWidth, newHeight), 0, 0);
+		resizedTexture.Apply();
+
+		RenderTexture.active = null;
+		rt.Release();
+
+		return resizedTexture.GetPixels();
 	}
 }
