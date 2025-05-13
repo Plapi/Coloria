@@ -6,6 +6,7 @@ public class DrawController : MonoBehaviour {
 	[SerializeField] private CanvasScaler canvasScaler;
 	[SerializeField] private RawImage rawImage;
 	[SerializeField] private RawImage brushImage;
+	[SerializeField] private DrawArea drawArea;
 
 	private Texture2D texture;
 	private int textureWidth;
@@ -59,7 +60,7 @@ public class DrawController : MonoBehaviour {
 			if (prevPixel != pixel) {
 				if (RectTransformUtility.ScreenPointToLocalPointInRectangle(surfaceRect, Input.mousePosition, null, out Vector2 localPoint)) {
 					brushImage.rectTransform.anchoredPosition = localPoint;
-					PaintStampAt(GetLocalPositionFromPixel(pixel));
+					PaintBrushAt(localPoint);
 					texture.Apply();
 				}
 				prevPixel = pixel;
@@ -70,24 +71,26 @@ public class DrawController : MonoBehaviour {
 		}
 	}
 	
-	private void PaintStampAt(Vector2 localPoint) {
+	private void PaintBrushAt(Vector2 localPoint) {
 		float dx = (localPoint.x + surfaceRect.rect.width / 2) / surfaceRect.rect.width;
 		float dy = (localPoint.y + surfaceRect.rect.height / 2) / surfaceRect.rect.height;
 		int centerX = Mathf.RoundToInt(dx * textureWidth);
 		int centerY = Mathf.RoundToInt(dy * textureHeight);
 
-		Quaternion rotation = brushImage.rectTransform.rotation;
 		Vector2 brushCenter = new Vector2(brushWidth / 2f, brushHeight / 2f);
-
+		
 		for (int x = 0; x < brushWidth; x++) {
 			for (int y = 0; y < brushHeight; y++) {
 				Vector2 localOffset = new Vector2(x, y) - brushCenter;
-				Vector2 rotatedOffset = rotation * localOffset;
-
-				int dstX = Mathf.RoundToInt(centerX + rotatedOffset.x);
-				int dstY = Mathf.RoundToInt(centerY + rotatedOffset.y);
+				
+				int dstX = Mathf.RoundToInt(centerX + localOffset.x);
+				int dstY = Mathf.RoundToInt(centerY + localOffset.y);
 
 				if (dstX < 0 || dstX >= textureWidth || dstY < 0 || dstY >= textureHeight) {
+					continue;
+				}
+				
+				if (!drawArea.IsInside(GetLocalPositionFromPixel(new Vector2Int(dstX, dstY)))) {
 					continue;
 				}
 				
