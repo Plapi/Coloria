@@ -238,8 +238,6 @@ MonoBehaviour:
   canvasScaler: {fileID: 110960958}
   rawImage: {fileID: 343063200}
   brushImage: {fileID: 2063836251}
-  penColor: {r: 0, g: 0, b: 0, a: 1}
-  brushSize: 4
 --- !u!1 &343063198
 GameObject:
   m_ObjectHideFlags: 0
@@ -585,7 +583,7 @@ MonoBehaviour:
   m_OnCullStateChanged:
     m_PersistentCalls:
       m_Calls: []
-  m_Texture: {fileID: 2800000, guid: 00042bfdc527df44f80b401829aff300, type: 3}
+  m_Texture: {fileID: 2800000, guid: 0a713f75f1c32a246b4309a0a27f5658, type: 3}
   m_UVRect:
     serializedVersion: 2
     x: 0
