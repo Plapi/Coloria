@@ -1,12 +1,14 @@
+using System;
+using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.UI;
 
 public class DrawController : MonoBehaviour {
 
-	[SerializeField] private CanvasScaler canvasScaler;
 	[SerializeField] private RawImage rawImage;
 	[SerializeField] private RawImage brushImage;
-	[SerializeField] private DrawArea drawArea;
+	[SerializeField] private Image drawImage;
+	[SerializeField] private TextAsset json;
 
 	private Texture2D texture;
 	private int textureWidth;
@@ -20,15 +22,19 @@ public class DrawController : MonoBehaviour {
 
 	private Vector2Int prevPixel = new(-1, -1);
 
+	private readonly List<HashSet<Vector2Int>> forms = new();
+	private HashSet<Vector2Int> selectedForm;
+	
 	private void Start() {
 		Application.targetFrameRate = 60;
 		SetTexture();
 		SetBrushPixels();
+		SetForms();
 	}
 
 	private void SetTexture() {
-		textureWidth = (int)canvasScaler.referenceResolution.x;
-		textureHeight = (int)canvasScaler.referenceResolution.y;
+		textureWidth = drawImage.mainTexture.width;
+		textureHeight = drawImage.mainTexture.height;
 		texture = new Texture2D(textureWidth, textureHeight, TextureFormat.RGBA32, false) {
 			filterMode = FilterMode.Point
 		};
@@ -49,26 +55,66 @@ public class DrawController : MonoBehaviour {
 		brushImage.gameObject.SetActive(false);
 	}
 
+	private void SetForms() {
+		forms.Clear();
+		OptimizedForm[] optimizedForms = JsonFx.Json.JsonReader.Deserialize<OptimizedForm[]>(json.ToString());
+		for (int i = 0; i < optimizedForms.Length; i++) {
+			HashSet<Vector2Int> points = new();
+			foreach (var line in optimizedForms[i].lines) {
+				for (int x = line.startX; x <= line.endX; x++) {
+					points.Add(new Vector2Int(x, line.y));
+				}
+			}
+			forms.Add(points);
+		}
+	}
+	
 	private void Update() {
 		if (Input.GetKeyDown(KeyCode.R)) {
 			Start();
 		}
 
-		if (Input.GetMouseButton(0)) {
-			brushImage.gameObject.SetActive(true);
-			Vector2Int pixel = GetTexturePixel();
-			if (prevPixel != pixel) {
-				if (RectTransformUtility.ScreenPointToLocalPointInRectangle(surfaceRect, Input.mousePosition, null, out Vector2 localPoint)) {
-					brushImage.rectTransform.anchoredPosition = localPoint;
-					PaintBrushAt(localPoint);
-					texture.Apply();
+		if (Input.GetMouseButtonDown(0)) {
+			if (TryGetLocalPoint(out _)) {
+				selectedForm = GetSelectedForm(GetTexturePixel());
+				// if (selectedForm != null) {
+				// 	foreach (var point in selectedForm) {
+				// 		texture.SetPixel(point.x, point.y, Color.red);
+				// 	}
+				// 	texture.Apply();
+				// }
+			}
+		} else if (Input.GetMouseButton(0)) {
+			if (selectedForm != null) {
+				brushImage.gameObject.SetActive(true);
+				Vector2Int pixel = GetTexturePixel();
+				if (prevPixel != pixel) {
+					if (TryGetLocalPoint(out Vector2 localPoint)) {
+						brushImage.rectTransform.anchoredPosition = localPoint;
+						PaintBrushAt(localPoint);
+						texture.Apply();
+					}
+					prevPixel = pixel;
 				}
-				prevPixel = pixel;
 			}
 		} else if (Input.GetMouseButtonUp(0)) {
 			brushImage.gameObject.SetActive(false);
+			selectedForm = null;
 			prevPixel = new Vector2Int(-1, -1);
 		}
+	}
+
+	private bool TryGetLocalPoint(out Vector2 localPoint) {
+		return RectTransformUtility.ScreenPointToLocalPointInRectangle(surfaceRect, Input.mousePosition, null, out localPoint);
+	}
+
+	private HashSet<Vector2Int> GetSelectedForm(Vector2Int point) {
+		for (int i = 0; i < forms.Count; i++) {
+			if (forms[i].Contains(point)) {
+				return forms[i];
+			}
+		}
+		return null;
 	}
 	
 	private void PaintBrushAt(Vector2 localPoint) {
@@ -89,8 +135,8 @@ public class DrawController : MonoBehaviour {
 				if (dstX < 0 || dstX >= textureWidth || dstY < 0 || dstY >= textureHeight) {
 					continue;
 				}
-				
-				if (!drawArea.IsInside(GetLocalPositionFromPixel(new Vector2Int(dstX, dstY)))) {
+
+				if (!selectedForm.Contains(new Vector2Int(dstX, dstY))) {
 					continue;
 				}
 				
@@ -136,4 +182,16 @@ public class DrawController : MonoBehaviour {
 
 		return resizedTexture.GetPixels();
 	}
+}
+
+[Serializable]
+public class OptimizedForm {
+	public FormLine[] lines;
+}
+
+[Serializable]
+public class FormLine {
+	public int startX;
+	public int endX;
+	public int y;
 }

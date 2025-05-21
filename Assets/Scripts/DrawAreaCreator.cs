@@ -6,8 +6,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEditor;
 
-[ExecuteInEditMode]
-public class DrawAreaCreator : MonoBehaviour {
+public class DrawFormCreator : MonoBehaviour {
 
 	[SerializeField] private Sprite sprite;
 	[SerializeField] private Image drawingImage;
@@ -74,24 +73,72 @@ public class DrawAreaCreator : MonoBehaviour {
 		}
 		string path = $"{Application.dataPath}{AssetDatabase.GUIDToAssetPath(guid).Replace("Assets", string.Empty)}/json.txt";
 
-		Form[] forms = new Form[formColors.Count];
-		for (int i = 0; i < forms.Length; i++) {
-			forms[i] = new Form {
-				points = new FormPoint[formColors[i].points.Count],
-			};
-			for (int j = 0; j < forms[i].points.Length; j++) {
-				forms[i].points[j] = new FormPoint {
-					x = formColors[i].points[j].x,
-					y = formColors[i].points[j].y
-				};
+		OptimizedForm[] forms = new OptimizedForm[formColors.Count];
+		for (int i = 0; i < formColors.Count; i++) {
+			List<Vector2Int> points = formColors[i].points;
+			Dictionary<int, List<int>> yToXs = new();
+			
+			foreach (var point in points) {
+				if (!yToXs.ContainsKey(point.y)) {
+					yToXs[point.y] = new List<int>();
+				}
+				yToXs[point.y].Add(point.x);
 			}
+
+			List<FormLine> lines = new();
+			foreach (var (y, xs) in yToXs) {
+				xs.Sort();
+				
+				int startX = xs[0];
+				int prevX = xs[0];
+				for (int j = 1; j < xs.Count; j++) {
+					if (xs[j] != prevX + 1) {
+						lines.Add(new FormLine { startX = startX, endX = prevX, y = y });
+						startX = xs[j];
+					}
+					prevX = xs[j];
+				}
+				lines.Add(new FormLine { startX = startX, endX = prevX, y = y });
+			}
+
+			forms[i] = new OptimizedForm {
+				lines = lines.ToArray()
+			};
 		}
-		
-		Debug.LogError(forms.Length);
+
 		File.WriteAllText(path, JsonFx.Json.JsonWriter.Serialize(forms));
 		AssetDatabase.Refresh();
 	}
-	
+
+	[ContextMenu("Test Forms Json")]
+	private void TestFormsJSON() {
+		if (!AssetDatabase.TryGetGUIDAndLocalFileIdentifier(jsonFolder, out string guid, out long _)) {
+			Debug.LogError("Couldn't find asset GUID.");
+			return;
+		}
+		string path = $"{Application.dataPath}{AssetDatabase.GUIDToAssetPath(guid).Replace("Assets", string.Empty)}/json.txt";
+		if (!File.Exists(path)) {
+			Debug.LogError("JSON file not found at path: " + path);
+			return;
+		}
+		
+		string json = File.ReadAllText(path);
+		OptimizedForm[] forms = JsonFx.Json.JsonReader.Deserialize<OptimizedForm[]>(json);
+		
+		SetDrawingTexture();
+		
+		for (int i = 0; i < forms.Length; i++) {
+			Color color = colors[i % colors.Length];
+			foreach (var line in forms[i].lines) {
+				for (int x = line.startX; x <= line.endX; x++) {
+					drawingTexture.SetPixel(x, line.y, color);
+				}
+			}
+		}
+		
+		drawingTexture.Apply();
+	}
+
 	private void SetDrawingTexture() {
 		drawingImage.sprite = sprite;
 		Texture2D texture = (Texture2D)drawingImage.mainTexture;
@@ -131,18 +178,7 @@ public class DrawAreaCreator : MonoBehaviour {
 	[Serializable]
 	private class FormColor {
 		public Color color;
-		[HideInInspector] public List<Vector2Int> points;
-	}
-	
-	[Serializable]
-	private class Form {
-		public FormPoint[] points;
-	}
-
-	[Serializable]
-	private class FormPoint {
-		public int x;
-		public int y;
+		[NonSerialized] public List<Vector2Int> points;
 	}
 }
 #endif
